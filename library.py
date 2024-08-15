@@ -226,8 +226,8 @@ HeroLib.ALL_HEROES = {
         HeroRole.GREY,
         (
             (SideShield, (3,)),
-            (SideShield, (3,)),
-            (SideShield, (3,)),
+            (SideShield, (2,)),
+            (SideShield, (1,)),
             (SideSword, (0,)),  # TODO: this should be empty
             (SideSword, (1,)),
             (SideSword, (1,)),

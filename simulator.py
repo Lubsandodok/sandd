@@ -121,6 +121,7 @@ class Simulator:
             Phase.LEVEL_UP: self._move_to_level_up,
             Phase.FINISHED: self._move_to_finished,
         }
+        self.last_fight_monsters = []
 
     def set_up(self, settings):
         self.settings = settings
@@ -214,7 +215,14 @@ class Simulator:
             str(uuid.uuid4()): self.heroesLib.getByName(name).dumpState()
             for name in state.heroes_names
         }
-        self._generate_monsters(4)
+        self._generate_monsters(3)
+
+        monsters_names = []
+        for monsterID in self.state.monsters:
+            monster_name = self.state.monsters[monsterID].name
+            monsters_names.append(monster_name)
+        self.last_fight_monsters = monsters_names
+        
         self._roll()
         self._generate_monster_attacks()
 
