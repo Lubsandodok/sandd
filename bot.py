@@ -15,7 +15,7 @@ class Bot:
 
     def run(self):
         s = self.simulator
-        s.set_up({'allowed_monsters': ['bee']})
+        s.set_up({})
         while s.state.phase != state.Phase.FINISHED:
             while s.state.phase not in (state.Phase.LEVEL_UP, state.Phase.FINISHED):
                 self._step_battle()
