@@ -30,6 +30,22 @@ class Action(abc.ABC):
     # def can_apply(self):
     #     pass
 
+    @classmethod
+    def check_and_remove_target(cls, state, targetID):
+        if targetID in state.monsters:
+            monster = state.monsters[targetID]
+            if monster.health <= 0:
+                del state.monsters[targetID]
+                del state.monster_sides[targetID]
+        elif targetID in state.heroes:
+            hero = state.heroes[targetID]
+            if hero.health <= 0:
+                del state.heroes[targetID]
+                if targetID in state.table_sides:
+                    del state.table_sides[targetID]
+                if targetID in state.saved_sides:
+                    del state.saved_sides[targetID]
+
 
 class ActionBattleSaveSide(Action):
     def __init__(self, heroes: List[HeroID]):
@@ -51,15 +67,21 @@ class ActionBattleApplySide(Action):
         self.targetID = targetID
 
     def apply(self, state):
-        side_state = state.heroes[self.heroID].sides[self.sideID]
-        side_cls = library.Side.get_side_cls(side_state.name)
-        side_cls.apply(state, side_state, self.targetID)
+        hero_state = state.heroes[self.heroID]
+        if not library.Character.can_side_be_used(hero_state, self.sideID):
+            return library.Result(True)
 
-        if self.targetID in state.monsters:
-            monster = state.monsters[self.targetID]
-            if monster.health <= 0:
-                del state.monsters[self.targetID]
-                del state.monster_sides[self.targetID]
+        # apply side logic
+        side_state = hero_state.sides[self.sideID]
+        side_cls = library.Side.get_cls(side_state.name)
+        side_cls.apply(state, side_state, self.targetID)
+        # apply keywords logic
+        for k_state in side_state.keywords.values():
+            k_cls = library.Keyword.get_cls(k_state.name)
+            k_cls.apply(state, k_state, self.heroID, self.targetID)
+
+        Action.check_and_remove_target(state, self.heroID)
+        Action.check_and_remove_target(state, self.targetID)
 
         return library.Result(True)
 
@@ -72,21 +94,23 @@ class ActionBattleReroll(Action):
 class ActionBattleEndTurn(Action):
     def apply(self, state):
         # TODO
-        for monsterID, monster in state.monsters.items():
+        for monsterID in list(state.monsters.keys()):
+            monster = state.monsters.get(monsterID)
+            if monster is None:
+                continue
             sideID = state.monster_sides[monsterID]
             side_state = monster.sides[sideID]
-            side_cls = library.Side.get_side_cls(side_state.name)
+            side_cls = library.Side.get_cls(side_state.name)
             targetID = state.monster_attacks[monsterID][0]
             side_cls.apply(state, side_state, targetID)
 
-            if targetID in state.heroes:
-                hero = state.heroes[targetID]
-                if hero.health <= 0:
-                    del state.heroes[targetID]
-                    if targetID in state.table_sides:
-                        del state.table_sides[targetID]
-                    if targetID in state.saved_sides:
-                        del state.saved_sides[targetID]
+            # apply keyword logic
+            for k_state in side_state.keywords.values():
+                k_cls = library.Keyword.get_cls(k_state.name)
+                k_cls.apply(state, k_state, monsterID, targetID)
+
+            Action.check_and_remove_target(state, targetID)
+            Action.check_and_remove_target(state, monsterID)
 
         state.saved_sides.clear()
         state.table_sides.clear()
@@ -137,7 +161,7 @@ class Simulator:
         results = []
         for action in actions:
             if not self._is_action_applicable(action):
-                results.append(library.Result(False, 'Is not applicable'))
+                results.apand(library.Result(False, 'Is not applicable'))
                 continue
             # TODO
             if isinstance(action, ActionBattleReroll):
@@ -212,7 +236,7 @@ class Simulator:
         state.heroes.clear()
         state.monsters.clear()
         state.heroes = {
-            str(uuid.uuid4()): self.heroesLib.getByName(name).dumpState()
+            str(uuid.uuid4()): self.heroesLib.getByName(name).dump_state()
             for name in state.heroes_names
         }
         self._generate_monsters(3)
@@ -257,7 +281,7 @@ class Simulator:
         for _ in range(count):
             monsterIndex = random.randint(0, len(allowed_monsters) - 1)
             monsterID = str(uuid.uuid4())
-            monster = self.monstersLib.getByName(allowed_monsters[monsterIndex]).dumpState()
+            monster = self.monstersLib.getByName(allowed_monsters[monsterIndex]).dump_state()
             self.state.monsters[monsterID] = monster
 
     def _generate_monster_attacks(self):

@@ -4,7 +4,7 @@ from bot import Bot
 if __name__ == '__main__':
     bot = Bot()
     success = 0
-    for _ in range(10):
+    for _ in range(1000):
         round, last_fight_monsters = bot.run()
         if round == 20:
             success += 1

@@ -1,6 +1,6 @@
 import dataclasses
 import enum
-from typing import Dict, List
+from typing import Dict, List, Set
 
 
 HeroID = str
@@ -23,11 +23,31 @@ class HeroRole(enum.Enum):
     GREY = enum.auto()
 
 
+class EffectName(enum.Enum):
+    PETRIFY = enum.auto()
+
+
+@dataclasses.dataclass
+class KeywordState:
+    name: str
+
+
+@dataclasses.dataclass
+class EffectState:
+    name: str
+
+
+@dataclasses.dataclass
+class PetrifyEffectState(EffectState):
+    sides: List[SideID]
+
+
 @dataclasses.dataclass
 class SideState:
     id: int
     pip: int
     name: str
+    keywords: Dict[str, KeywordState]
 
 
 @dataclasses.dataclass
@@ -38,6 +58,7 @@ class HeroState:
     role: HeroRole
     shield: int
     sides: List[SideState]
+    effects: Dict[EffectName, EffectState]
 
 
 @dataclasses.dataclass
@@ -46,6 +67,7 @@ class MonsterState:
     health: int
     shield: int
     sides: List[SideState]
+    effects: Dict[EffectName, EffectState]
 
 
 @dataclasses.dataclass
