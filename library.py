@@ -1,6 +1,6 @@
 import abc
 import random
-from typing import List, Self, Optional, Dict
+from typing import List, Self, Optional, Dict, OrderedDict, Literal
 
 import state
 
@@ -25,12 +25,12 @@ class Keyword(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def apply(cls, state, target_state, selfID, targetID) -> Result:
+    def apply(cls, state, side_state, selfID, targetID) -> Result:
         pass
 
     @classmethod
     @abc.abstractmethod
-    def undo(cls, state, target_state, selfID, targetID) -> Result:
+    def undo(cls, state, side_state, selfID, targetID) -> Result:
         pass
 
     @abc.abstractmethod
@@ -44,7 +44,7 @@ class Death(Keyword):
         return 'death'
 
     @classmethod
-    def apply(cls, state, target_state, selfID, targetID) -> Result:
+    def apply(cls, state, side_state, selfID, targetID) -> Result:
         if selfID in state.monsters:
             character_state = state.monsters[selfID]
         elif selfID in state.heroes:
@@ -69,7 +69,7 @@ class Petrify(Keyword):
         return 'petrify'
 
     @classmethod
-    def apply(cls, state, target_state, selfID, targetID) -> Result:
+    def apply(cls, state, side_state, selfID, targetID) -> Result:
         character_state = None
         if targetID in state.monsters:
             character_state = state.monsters[targetID]
@@ -79,6 +79,73 @@ class Petrify(Keyword):
             Character.petrify(character_state)
         return Result(True)
 
+    @classmethod
+    def undo(cls, state, target_state, selfID, targetID) -> Result:
+        pass
+
+    def dump_state(self) -> state.KeywordState:
+        return state.KeywordState(name=self.name())
+
+
+class Eliminate(Keyword):
+    @classmethod
+    def name(self) -> str:
+        return 'eliminate'
+
+    @classmethod
+    def apply(cls, state, side_state, selfID, targetID) -> Result:
+        pass
+
+    def dump_state(self) -> state.KeywordState:
+        return state.KeywordState(name=self.name())
+
+
+class Cleave(Keyword):
+    @classmethod
+    def name(self) -> str:
+        return 'cleave'
+
+    @classmethod
+    def apply(cls, state_obj: state.SimulatorState, side_state, selfID, targetID) -> Result:
+        # TODO: refactor it later. Balanced trees would be ideal here.
+        def get_value(
+                positions: OrderedDict[CharacterID, state.PositionState],
+                targetID: CharacterID,
+                direction: Literal[-1, 1],
+        ) -> Optional[CharacterID]:
+            position_list = list(positions.keys())
+            position = positions[targetID].position + direction
+            can_iterate = position not in (-1, len(positions))
+            while can_iterate:
+                characterID = position_list[position]
+                if positions[characterID].dead == False:
+                    return characterID
+                position += direction
+                can_iterate = position not in (-1, len(positions))
+            return None
+
+        if targetID in state_obj.monsters:
+            # The third one exists in the side itself
+            monsters_to_attack = [
+                get_value(state_obj.monsters_position, targetID, 1),
+                get_value(state_obj.monsters_position, targetID, -1),
+            ]
+            for monsterID in monsters_to_attack:
+                if monsterID:
+                    side_cls = Side.get_cls(side_state.name)
+                    side_cls.apply(state_obj, side_state, monsterID)
+        elif targetID in state_obj.heroes:
+            heroes_to_attack = [
+                get_value(state_obj.heroes_position, targetID, 1),
+                get_value(state_obj.heroes_position, targetID, -1),
+            ]
+            for heroID in heroes_to_attack:
+                if heroID:
+                    side_cls = Side.get_cls(side_state.name)
+                    side_cls.apply(state_obj, side_state, heroID)
+        return Result(True)
+
+    @classmethod
     def undo(cls, state, target_state, selfID, targetID) -> Result:
         pass
 
@@ -153,6 +220,7 @@ class SideShield(Side):
 
 
 CharacterState = state.HeroState | state.MonsterState
+CharacterID = state.HeroID | state.MonsterID
 
 
 class Character:
@@ -327,7 +395,7 @@ class MonsterLib:
 
 Keyword.ALL_KEYWORDS = {
     k_cls.name(): k_cls
-    for k_cls in (Death, Petrify)
+    for k_cls in (Death, Petrify, Cleave)
 }
 
 

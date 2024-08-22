@@ -2,10 +2,10 @@ import abc
 import enum
 import random
 import uuid
-from typing import List, Optional
+from typing import List, Optional, OrderedDict
 
 import library
-from state import Phase, SimulatorState, HeroState, MonsterState, HeroID, MonsterID
+from state import Phase, SimulatorState, HeroState, MonsterState, HeroID, MonsterID, PositionState, Row
 
 
 class ActionType(enum.Enum):
@@ -35,11 +35,13 @@ class Action(abc.ABC):
         if targetID in state.monsters:
             monster = state.monsters[targetID]
             if monster.health <= 0:
+                state.monsters_position[targetID].dead = True
                 del state.monsters[targetID]
                 del state.monster_sides[targetID]
         elif targetID in state.heroes:
             hero = state.heroes[targetID]
             if hero.health <= 0:
+                state.heroes_position[targetID].dead = True
                 del state.heroes[targetID]
                 if targetID in state.table_sides:
                     del state.table_sides[targetID]
@@ -78,10 +80,15 @@ class ActionBattleApplySide(Action):
         # apply keywords logic
         for k_state in side_state.keywords.values():
             k_cls = library.Keyword.get_cls(k_state.name)
-            k_cls.apply(state, k_state, self.heroID, self.targetID)
+            k_cls.apply(state, side_state, self.heroID, self.targetID)
 
-        Action.check_and_remove_target(state, self.heroID)
-        Action.check_and_remove_target(state, self.targetID)
+        # TODO: inefficient
+        for heroID in list(state.heroes.keys()):
+            Action.check_and_remove_target(state, heroID)
+        for monsterID in list(state.monsters.keys()):
+            Action.check_and_remove_target(state, monsterID)
+        # Action.check_and_remove_target(state, self.heroID)
+        # Action.check_and_remove_target(state, self.targetID)
 
         return library.Result(True)
 
@@ -107,10 +114,15 @@ class ActionBattleEndTurn(Action):
             # apply keyword logic
             for k_state in side_state.keywords.values():
                 k_cls = library.Keyword.get_cls(k_state.name)
-                k_cls.apply(state, k_state, monsterID, targetID)
+                k_cls.apply(state, side_state, monsterID, targetID)
 
-            Action.check_and_remove_target(state, targetID)
-            Action.check_and_remove_target(state, monsterID)
+            # TODO: inefficient
+            for heroID in list(state.heroes.keys()):
+                Action.check_and_remove_target(state, heroID)
+            for monsterID in list(state.monsters.keys()):
+                Action.check_and_remove_target(state, monsterID)
+            # Action.check_and_remove_target(state, targetID)
+            # Action.check_and_remove_target(state, monsterID)
 
         state.saved_sides.clear()
         state.table_sides.clear()
@@ -151,7 +163,7 @@ class Simulator:
         self.settings = settings
         self.state.phase = Phase.NONE
         self.state.round = 0
-        self.state.heroes_names = [self.heroesLib.getHeroBy(level=1).name for _ in range(5)]
+        self.state.heroes_name = [self.heroesLib.getHeroBy(level=1).name for _ in range(5)]
 
         # self.state.items = []
         self._move_to_battle()
@@ -235,10 +247,20 @@ class Simulator:
         state.saved_sides.clear()
         state.heroes.clear()
         state.monsters.clear()
+        state.monsters_position.clear()
+        # python3.7 and higher has state.heroes always in the same order
         state.heroes = {
             str(uuid.uuid4()): self.heroesLib.getByName(name).dump_state()
-            for name in state.heroes_names
+            for name in state.heroes_name
         }
+        self.state.heroes_position = OrderedDict(tuple(
+            (heroID, PositionState(position=i, row=Row.FORWARD, dead=False))
+            for i, heroID in enumerate(list(state.heroes.keys()))
+        ))
+
+        for hero_position in state.heroes_position.values():
+            hero_position.dead = False
+            hero_position.row = Row.FORWARD
         self._generate_monsters(3)
 
         monsters_names = []
@@ -278,11 +300,12 @@ class Simulator:
             'allowed_monsters',
             list(library.MonsterLib.ALL_MONSTERS.keys()),
         )
-        for _ in range(count):
+        for i in range(count):
             monsterIndex = random.randint(0, len(allowed_monsters) - 1)
             monsterID = str(uuid.uuid4())
             monster = self.monstersLib.getByName(allowed_monsters[monsterIndex]).dump_state()
             self.state.monsters[monsterID] = monster
+            self.state.monsters_position[monsterID] = PositionState(position=i, row=Row.FORWARD, dead=False)
 
     def _generate_monster_attacks(self):
         # TODO

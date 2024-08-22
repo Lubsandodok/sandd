@@ -1,6 +1,6 @@
 import dataclasses
 import enum
-from typing import Dict, List, Set
+from typing import Dict, List, OrderedDict
 
 
 HeroID = str
@@ -16,6 +16,11 @@ class Phase(enum.Enum):
     ITEM_DISTRIBUTION = enum.auto()
     BATTLE = enum.auto()
     FINISHED = enum.auto()
+
+
+class Row(enum.Enum):
+    FORWARD = enum.auto()
+    BACK = enum.auto()
 
 
 class HeroRole(enum.Enum):
@@ -51,6 +56,13 @@ class SideState:
 
 
 @dataclasses.dataclass
+class PositionState:
+    position: int
+    row: Row
+    dead: bool
+
+
+@dataclasses.dataclass
 class HeroState:
     name: str
     health: int
@@ -76,9 +88,11 @@ class SimulatorState:
     phase: Phase = Phase.NONE
     is_item_distribution: bool = False
 
-    heroes_names: List[str] = dataclasses.field(default_factory=str)
+    heroes_name: List[str] = dataclasses.field(default_factory=str)
+    heroes_position: OrderedDict[HeroID, PositionState] = dataclasses.field(default_factory=OrderedDict)
     heroes: Dict[HeroID, HeroState] = dataclasses.field(default_factory=dict)
     monsters: Dict[MonsterID, MonsterState] = dataclasses.field(default_factory=dict)
+    monsters_position: OrderedDict[HeroID, PositionState] = dataclasses.field(default_factory=OrderedDict)
     # items: List[Item]
 
     table_sides: Dict[HeroID, SideID] = dataclasses.field(default_factory=dict)
